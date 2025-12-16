@@ -250,9 +250,13 @@ export class FlowEngine {
       case 'sendText': {
         const message = interpolate(config.message || '', this.variables);
         console.log('[ENGINE] Sending text:', message.substring(0, 100), 'to:', customerId);
+        console.log('[ENGINE] Using phone_number_id:', this.config.phone_number_id);
         try {
-          await wa.sendText(this.config.access_token, this.config.phone_number_id, customerId, message);
-          console.log('[ENGINE] Text sent successfully');
+          const result = await wa.sendText(this.config.access_token, this.config.phone_number_id, customerId, message);
+          console.log('[ENGINE] WhatsApp API response:', JSON.stringify(result));
+          if (result.error) {
+            console.error('[ENGINE] WhatsApp API error:', result.error.message);
+          }
         } catch (err) {
           console.error('[ENGINE] Failed to send text:', err.message);
         }

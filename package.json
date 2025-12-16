@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "dev:full": "npm run build && wrangler pages dev dist",
+    "dev:full": "npm run build:all && wrangler pages dev dist",
     "build": "tsc -b && vite build",
     "build:all": "npm run build && npm run docs:build && shx cp -r docs/.vitepress/dist dist/docs",
     "lint": "eslint .",

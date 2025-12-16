@@ -127,6 +127,14 @@ export function Login() {
               Create an Account
             </Link>
           </div>
+
+          {/* Docs Link for Dan */}
+          <div className="mt-3 text-center text-sm text-gray-600">
+            Hey Dan, please view the docs{' '}
+            <a href="/docs/" className="text-green-600 hover:text-green-700 font-medium">
+              here
+            </a>
+          </div>
         </div>
       </div>
     </div>

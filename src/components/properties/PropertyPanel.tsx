@@ -1,5 +1,6 @@
+import { useState } from 'react';
 import { useFlowStore } from '@/stores/flowStore';
-import { X, Plus, Trash2 } from 'lucide-react';
+import { X, Plus, Trash2, Copy, Check, Eye, EyeOff } from 'lucide-react';
 import type {
   FlowNodeData,
   TriggerConfig,
@@ -29,7 +30,117 @@ import type {
   SendStampCardConfig,
 } from '@/types/flow';
 
+// Helper to generate friendly step ID
+function getFriendlyStepId(flowName: string | undefined, nodeType: string, nodeId: string): string {
+  const flowSlug = (flowName || 'flow').toLowerCase().replace(/\s+/g, '_').slice(0, 20);
+  const shortId = nodeId.slice(-4);
+  return `${flowSlug}.${nodeType}.${shortId}`;
+}
+
+// Copyable Step Info component
+function StepInfo({ flowName, nodeType, nodeId }: { flowName: string | undefined; nodeType: string; nodeId: string }) {
+  const [copied, setCopied] = useState(false);
+  const friendlyId = getFriendlyStepId(flowName, nodeType, nodeId);
+
+  const handleCopy = async () => {
+    await navigator.clipboard.writeText(friendlyId);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  };
+
+  return (
+    <div className="mb-4 p-2 bg-gray-100 rounded-md">
+      <div className="flex items-center justify-between">
+        <span className="text-xs text-gray-500">Step ID</span>
+        <button
+          onClick={handleCopy}
+          className="p-1 hover:bg-gray-200 rounded transition-colors"
+          title="Copy step ID"
+        >
+          {copied ? <Check size={14} className="text-green-500" /> : <Copy size={14} className="text-gray-400" />}
+        </button>
+      </div>
+      <code className="text-xs text-gray-700 font-mono break-all">{friendlyId}</code>
+    </div>
+  );
+}
+
+// WhatsApp message preview component
+function WhatsAppPreview({
+  message,
+  headerText,
+  footerText,
+  buttons,
+  imageUrl,
+  caption,
+}: {
+  message?: string;
+  headerText?: string;
+  footerText?: string;
+  buttons?: { id: string; title: string }[];
+  imageUrl?: string;
+  caption?: string;
+}) {
+  const [showPreview, setShowPreview] = useState(false);
+
+  const displayText = message || caption || '';
+
+  return (
+    <div className="mt-3">
+      <button
+        onClick={() => setShowPreview(!showPreview)}
+        className="flex items-center gap-2 text-sm text-blue-600 hover:text-blue-800"
+      >
+        {showPreview ? <EyeOff size={16} /> : <Eye size={16} />}
+        {showPreview ? 'Hide Preview' : 'Show Preview'}
+      </button>
+
+      {showPreview && (
+        <div className="mt-2 p-3 bg-[#e5ddd5] rounded-lg">
+          {/* WhatsApp chat bubble */}
+          <div className="max-w-[220px] ml-auto">
+            <div className="bg-[#dcf8c6] rounded-lg overflow-hidden shadow-sm">
+              {imageUrl && (
+                <div className="w-full h-32 bg-gray-200 flex items-center justify-center">
+                  <span className="text-xs text-gray-500">Image Preview</span>
+                </div>
+              )}
+              <div className="p-2">
+                {headerText && (
+                  <p className="text-sm font-bold text-gray-900 mb-1">{headerText}</p>
+                )}
+                <p className="text-sm text-gray-800 whitespace-pre-wrap break-words">
+                  {displayText || 'No message content'}
+                </p>
+                {footerText && (
+                  <p className="text-xs text-gray-500 mt-1 italic">{footerText}</p>
+                )}
+                <div className="text-right mt-1">
+                  <span className="text-[10px] text-gray-500">12:00</span>
+                </div>
+              </div>
+              {buttons && buttons.length > 0 && (
+                <div className="border-t border-gray-200">
+                  {buttons.map((btn, i) => (
+                    <div
+                      key={btn.id}
+                      className={`text-center py-2 text-sm text-blue-500 ${i > 0 ? 'border-t border-gray-200' : ''}`}
+                    >
+                      {btn.title}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 export function PropertyPanel() {
+  const flow = useFlowStore((state) => state.flow);
   const nodes = useFlowStore((state) => state.nodes);
   const selectedNodeId = useFlowStore((state) => state.selectedNodeId);
   const updateNodeConfig = useFlowStore((state) => state.updateNodeConfig);
@@ -75,6 +186,9 @@ export function PropertyPanel() {
             className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
           />
         </div>
+
+        {/* Step Info */}
+        <StepInfo flowName={flow?.name} nodeType={data.nodeType} nodeId={selectedNode.id} />
 
         {/* Node-specific config */}
         <div className="space-y-4">
@@ -261,23 +375,92 @@ function TriggerConfigForm({
   config: TriggerConfig;
   onChange: (c: Partial<TriggerConfig>) => void;
 }) {
+  const keywords = config.keywords || ['START'];
+  const isMultiple = keywords.length > 1;
+
+  const toggleMode = () => {
+    if (isMultiple) {
+      // Switch to single: keep first keyword
+      onChange({ keywords: [keywords[0] || 'START'] });
+    } else {
+      // Switch to multiple: add empty keyword
+      onChange({ keywords: [...keywords, ''] });
+    }
+  };
+
+  const addKeyword = () => {
+    onChange({ keywords: [...keywords, ''] });
+  };
+
+  const updateKeyword = (index: number, value: string) => {
+    const newKeywords = [...keywords];
+    newKeywords[index] = value;
+    onChange({ keywords: newKeywords });
+  };
+
+  const removeKeyword = (index: number) => {
+    if (keywords.length <= 1) return;
+    onChange({ keywords: keywords.filter((_, i) => i !== index) });
+  };
+
   return (
     <>
-      <div>
-        <label className="block text-sm font-medium text-gray-700 mb-1">
-          Keywords (comma-separated)
-        </label>
-        <input
-          type="text"
-          value={config.keywords?.join(', ') || ''}
-          onChange={(e) =>
-            onChange({ keywords: e.target.value.split(',').map((k) => k.trim()) })
-          }
-          className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-          placeholder="START, DEMO, HELP"
-        />
+      {/* Single/Multiple Toggle */}
+      <div className="flex items-center justify-between mb-3">
+        <span className="text-sm font-medium text-gray-700">Trigger Keywords</span>
+        <button
+          onClick={toggleMode}
+          className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
+            isMultiple ? 'bg-green-500' : 'bg-gray-300'
+          }`}
+        >
+          <span
+            className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+              isMultiple ? 'translate-x-6' : 'translate-x-1'
+            }`}
+          />
+        </button>
       </div>
-      <div className="flex items-center gap-2">
+      <div className="text-xs text-gray-500 mb-2">
+        {isMultiple ? 'Multiple triggers' : 'Single trigger'}
+      </div>
+
+      {/* Keywords List */}
+      <div className="space-y-2">
+        {keywords.map((keyword, i) => (
+          <div key={i} className="flex gap-2">
+            <input
+              type="text"
+              value={keyword}
+              onChange={(e) => updateKeyword(i, e.target.value)}
+              className="flex-1 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+              placeholder={`Keyword ${i + 1}`}
+            />
+            {isMultiple && (
+              <button
+                onClick={() => removeKeyword(i)}
+                disabled={keywords.length <= 1}
+                className="px-2 text-red-500 hover:bg-red-50 rounded-md disabled:opacity-30 disabled:cursor-not-allowed"
+              >
+                <Trash2 size={16} />
+              </button>
+            )}
+          </div>
+        ))}
+      </div>
+
+      {/* Add Button */}
+      {isMultiple && (
+        <button
+          onClick={addKeyword}
+          className="mt-2 flex items-center gap-1 text-sm text-blue-600 hover:text-blue-800"
+        >
+          <Plus size={14} /> Add Keyword
+        </button>
+      )}
+
+      {/* Case Sensitive */}
+      <div className="flex items-center gap-2 mt-3 pt-3 border-t border-gray-200">
         <input
           type="checkbox"
           id="caseSensitive"
@@ -301,21 +484,24 @@ function SendTextConfigForm({
   onChange: (c: Partial<SendTextConfig>) => void;
 }) {
   return (
-    <div>
-      <label className="block text-sm font-medium text-gray-700 mb-1">
-        Message
-      </label>
-      <textarea
-        value={config.message || ''}
-        onChange={(e) => onChange({ message: e.target.value })}
-        rows={4}
-        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-        placeholder="Hello {{name}}! Welcome..."
-      />
-      <p className="mt-1 text-xs text-gray-500">
-        Use {'{{variable}}'} for dynamic content
-      </p>
-    </div>
+    <>
+      <div>
+        <label className="block text-sm font-medium text-gray-700 mb-1">
+          Message
+        </label>
+        <textarea
+          value={config.message || ''}
+          onChange={(e) => onChange({ message: e.target.value })}
+          rows={4}
+          className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+          placeholder="Hello {{name}}! Welcome..."
+        />
+        <p className="mt-1 text-xs text-gray-500">
+          Use {'{{variable}}'} for dynamic content
+        </p>
+      </div>
+      <WhatsAppPreview message={config.message} />
+    </>
   );
 }
 
@@ -351,6 +537,7 @@ function SendImageConfigForm({
           className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
         />
       </div>
+      <WhatsAppPreview imageUrl={config.imageUrl} caption={config.caption} />
     </>
   );
 }
@@ -427,6 +614,7 @@ function SendButtonsConfigForm({
           </button>
         )}
       </div>
+      <WhatsAppPreview message={config.bodyText} buttons={config.buttons} />
     </>
   );
 }
@@ -713,6 +901,11 @@ function SendTextEnhancedConfigForm({
           placeholder="Italic footer text"
         />
       </div>
+      <WhatsAppPreview
+        message={config.bodyText}
+        headerText={config.headerText}
+        footerText={config.footerText}
+      />
     </>
   );
 }

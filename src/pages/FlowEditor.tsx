@@ -85,11 +85,12 @@ export function FlowEditor() {
       }));
 
       // Convert API edges to React Flow edges
+      // Note: sourceHandle 'default' should be converted to undefined for React Flow
       const rfEdges: Edge[] = apiEdges.map((edge) => ({
         id: edge.id,
         source: edge.source,
         target: edge.target,
-        sourceHandle: edge.sourceHandle,
+        sourceHandle: edge.sourceHandle === 'default' ? undefined : edge.sourceHandle,
       }));
 
       setFlowId(flow.id);

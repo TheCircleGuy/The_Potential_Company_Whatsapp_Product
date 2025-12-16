@@ -99,7 +99,8 @@ export class FlowEngine {
 
     const data = executions[0];
     this.execution = data;
-    this.variables = data.variables || {};
+    // Merge stored variables with initial variables (preserves customer_name, customer_phone, etc.)
+    this.variables = { ...this.variables, ...(data.variables || {}) };
     await this.loadFlow(data.flow_id);
 
     return data;
@@ -120,6 +121,9 @@ export class FlowEngine {
     }
     console.log('[ENGINE] Trigger node found:', triggerNode.id);
 
+    // Store initial variables (customer_name, customer_phone, etc.) set by webhook
+    const initialVariables = { ...this.variables };
+
     const rows = await sbInsert(
       this.env,
       'flow_executions',
@@ -129,14 +133,15 @@ export class FlowEngine {
         whatsapp_config_id: configId,
         current_node_id: triggerNode.id,
         status: 'running',
-        variables: {},
+        variables: initialVariables,
       }],
       true
     );
 
     this.execution = rows[0];
-    this.variables = {};
-    console.log('[ENGINE] Execution created:', this.execution?.id);
+    // Keep initial variables instead of overwriting
+    this.variables = initialVariables;
+    console.log('[ENGINE] Execution created:', this.execution?.id, 'with initial variables:', Object.keys(initialVariables));
 
     return this.execution;
   }

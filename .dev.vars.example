@@ -1,0 +1,5 @@
+# Copy this file to .dev.vars and fill in your values
+# These are used by wrangler for local development
+
+SUPABASE_URL=https://your-project.supabase.co
+SUPABASE_SERVICE_KEY=your-service-key-here

@@ -97,6 +97,7 @@ export interface ConditionRule {
 export interface ConditionConfig {
   conditions: ConditionRule[];
   defaultHandle: string;
+  showDefaultHandle?: boolean;
 }
 
 export interface VariableAssignment {

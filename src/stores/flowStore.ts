@@ -61,7 +61,8 @@ const getDefaultConfig = (type: NodeType): NodeConfig => {
     case 'condition':
       return {
         conditions: [{ variable: 'user_input', operator: 'equals', value: 'yes', outputHandle: 'true' }],
-        defaultHandle: 'false',
+        defaultHandle: 'else',
+        showDefaultHandle: true,
       };
     case 'setVariable':
       return { assignments: [{ variableName: 'myVar', valueType: 'static', value: '' }] };

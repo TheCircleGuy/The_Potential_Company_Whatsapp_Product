@@ -760,16 +760,37 @@ function ConditionConfigForm({
           + Add Condition
         </button>
       </div>
-      <div>
-        <label className="block text-sm font-medium text-gray-700 mb-1">
-          Default Handle
-        </label>
-        <input
-          type="text"
-          value={config.defaultHandle || 'false'}
-          onChange={(e) => onChange({ defaultHandle: e.target.value })}
-          className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-        />
+      <div className="space-y-3">
+        <div className="flex items-center justify-between">
+          <label className="text-sm font-medium text-gray-700">
+            Default Handle (Else)
+          </label>
+          <button
+            type="button"
+            onClick={() => onChange({ showDefaultHandle: !(config.showDefaultHandle !== false) })}
+            className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
+              config.showDefaultHandle !== false ? 'bg-red-500' : 'bg-gray-300'
+            }`}
+          >
+            <span
+              className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                config.showDefaultHandle !== false ? 'translate-x-6' : 'translate-x-1'
+              }`}
+            />
+          </button>
+        </div>
+        {config.showDefaultHandle !== false && (
+          <input
+            type="text"
+            value={config.defaultHandle || 'else'}
+            onChange={(e) => onChange({ defaultHandle: e.target.value })}
+            placeholder="Handle name (e.g., else, default)"
+            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-red-500"
+          />
+        )}
+        <p className="text-xs text-gray-500">
+          The default handle catches all cases that don't match any condition.
+        </p>
       </div>
     </>
   );

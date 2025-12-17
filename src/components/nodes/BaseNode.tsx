@@ -10,7 +10,7 @@ interface BaseNodeProps {
   children?: ReactNode;
   showSourceHandle?: boolean;
   showTargetHandle?: boolean;
-  sourceHandles?: { id: string; label?: string }[];
+  sourceHandles?: { id: string; label?: string; color?: string }[];
 }
 
 function BaseNodeComponent({
@@ -67,9 +67,10 @@ function BaseNodeComponent({
           type="source"
           position={Position.Bottom}
           id={handle.id}
-          className="!w-3 !h-3 !bg-gray-400 !border-2 !border-white"
+          className="!w-3 !h-3 !border-2 !border-white"
           style={{
             left: `${((index + 1) / (sourceHandles.length + 1)) * 100}%`,
+            backgroundColor: handle.color || '#9ca3af',
           }}
         />
       ))}

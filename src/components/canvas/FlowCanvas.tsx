@@ -1,4 +1,4 @@
-import { useCallback } from 'react';
+import { useCallback, useEffect } from 'react';
 import {
   ReactFlow,
   Background,
@@ -12,6 +12,11 @@ import {
 } from '@xyflow/react';
 import { useFlowStore } from '@/stores/flowStore';
 import { nodeTypes } from '@/components/nodes';
+import { DeletableEdge } from '@/components/edges/DeletableEdge';
+
+const edgeTypes = {
+  default: DeletableEdge,
+};
 
 export function FlowCanvas() {
   const nodes = useFlowStore((state) => state.nodes);
@@ -20,6 +25,30 @@ export function FlowCanvas() {
   const onEdgesChange = useFlowStore((state) => state.onEdgesChange);
   const onConnect = useFlowStore((state) => state.onConnect);
   const selectNode = useFlowStore((state) => state.selectNode);
+  const undo = useFlowStore((state) => state.undo);
+  const redo = useFlowStore((state) => state.redo);
+
+  // Keyboard shortcuts for undo/redo
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && e.key === 'z') {
+        e.preventDefault();
+        if (e.shiftKey) {
+          redo();
+        } else {
+          undo();
+        }
+      }
+      // Also support Ctrl+Y for redo
+      if ((e.ctrlKey || e.metaKey) && e.key === 'y') {
+        e.preventDefault();
+        redo();
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [undo, redo]);
 
   const handleNodesChange = useCallback(
     (changes: NodeChange[]) => {
@@ -64,6 +93,7 @@ export function FlowCanvas() {
         onNodeClick={handleNodeClick}
         onPaneClick={handlePaneClick}
         nodeTypes={nodeTypes}
+        edgeTypes={edgeTypes}
         fitView
         snapToGrid
         snapGrid={[15, 15]}

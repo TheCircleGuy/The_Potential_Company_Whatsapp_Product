@@ -10,6 +10,12 @@ import {
   type Connection,
 } from '@xyflow/react';
 import type { Flow, NodeType, NodeConfig, FlowNodeData } from '@/types/flow';
+import { autoLayout as autoLayoutFn, reorderFlow } from '@/utils/autoLayout';
+
+interface HistoryState {
+  nodes: Node<FlowNodeData>[];
+  edges: Edge[];
+}
 
 interface FlowState {
   // Current flow
@@ -17,9 +23,18 @@ interface FlowState {
   nodes: Node<FlowNodeData>[];
   edges: Edge[];
 
+  // History for undo/redo
+  past: HistoryState[];
+  future: HistoryState[];
+
   // UI state
   selectedNodeId: string | null;
   isDirty: boolean;
+  outlinePanelOpen: boolean;
+
+  // Computed
+  canUndo: () => boolean;
+  canRedo: () => boolean;
 
   // Actions
   setFlow: (flow: Flow | null) => void;
@@ -32,8 +47,16 @@ interface FlowState {
   updateNodeConfig: (nodeId: string, config: Partial<NodeConfig>) => void;
   updateNodeLabel: (nodeId: string, label: string) => void;
   deleteNode: (nodeId: string) => void;
+  deleteEdge: (edgeId: string) => void;
+  insertNodeOnEdge: (edgeId: string, nodeType: NodeType) => void;
   selectNode: (nodeId: string | null) => void;
   setDirty: (dirty: boolean) => void;
+  toggleOutlinePanel: () => void;
+  autoLayout: () => void;
+  moveNode: (nodeId: string, newParentId: string | null, newBranchHandle: string | null, insertAfterNodeId: string | null) => void;
+  undo: () => void;
+  redo: () => void;
+  saveToHistory: () => void;
   resetFlow: () => void;
 }
 
@@ -177,12 +200,30 @@ const getNodeLabel = (type: NodeType): string => {
 
 let nodeIdCounter = 0;
 
+const MAX_HISTORY_LENGTH = 50;
+
 export const useFlowStore = create<FlowState>((set, get) => ({
   flow: null,
   nodes: [],
   edges: [],
+  past: [],
+  future: [],
   selectedNodeId: null,
   isDirty: false,
+  outlinePanelOpen: false,
+
+  canUndo: () => get().past.length > 0,
+  canRedo: () => get().future.length > 0,
+
+  saveToHistory: () => {
+    const { nodes, edges, past } = get();
+    const newPast = [...past, { nodes: JSON.parse(JSON.stringify(nodes)), edges: JSON.parse(JSON.stringify(edges)) }];
+    // Limit history length
+    if (newPast.length > MAX_HISTORY_LENGTH) {
+      newPast.shift();
+    }
+    set({ past: newPast, future: [] });
+  },
 
   setFlow: (flow) => set({ flow }),
 
@@ -212,6 +253,7 @@ export const useFlowStore = create<FlowState>((set, get) => ({
   },
 
   addNode: (type, position) => {
+    get().saveToHistory();
     const id = `node_${++nodeIdCounter}_${Date.now()}`;
     const newNode: Node<FlowNodeData> = {
       id,
@@ -256,6 +298,7 @@ export const useFlowStore = create<FlowState>((set, get) => ({
   },
 
   deleteNode: (nodeId) => {
+    get().saveToHistory();
     set({
       nodes: get().nodes.filter((node) => node.id !== nodeId),
       edges: get().edges.filter((edge) => edge.source !== nodeId && edge.target !== nodeId),
@@ -264,16 +307,138 @@ export const useFlowStore = create<FlowState>((set, get) => ({
     });
   },
 
+  deleteEdge: (edgeId) => {
+    get().saveToHistory();
+    set({
+      edges: get().edges.filter((edge) => edge.id !== edgeId),
+      isDirty: true,
+    });
+  },
+
+  insertNodeOnEdge: (edgeId, nodeType) => {
+    get().saveToHistory();
+    const { nodes, edges } = get();
+    const edge = edges.find((e) => e.id === edgeId);
+    if (!edge) return;
+
+    const sourceNode = nodes.find((n) => n.id === edge.source);
+    const targetNode = nodes.find((n) => n.id === edge.target);
+    if (!sourceNode || !targetNode) return;
+
+    // Calculate midpoint position
+    const midX = (sourceNode.position.x + targetNode.position.x) / 2;
+    const midY = (sourceNode.position.y + targetNode.position.y) / 2;
+
+    // Create new node
+    const newNodeId = `node_${++nodeIdCounter}_${Date.now()}`;
+    const newNode: Node<FlowNodeData> = {
+      id: newNodeId,
+      type: nodeType,
+      position: { x: midX, y: midY },
+      data: {
+        label: getNodeLabel(nodeType),
+        nodeType: nodeType,
+        config: getDefaultConfig(nodeType),
+      },
+    };
+
+    // Create new edges
+    const newEdges = [
+      // Source to new node (preserve sourceHandle if any)
+      {
+        id: `edge_${Date.now()}_1`,
+        source: edge.source,
+        target: newNodeId,
+        sourceHandle: edge.sourceHandle,
+      },
+      // New node to target
+      {
+        id: `edge_${Date.now()}_2`,
+        source: newNodeId,
+        target: edge.target,
+      },
+    ];
+
+    set({
+      nodes: [...nodes, newNode],
+      edges: [...edges.filter((e) => e.id !== edgeId), ...newEdges],
+      selectedNodeId: newNodeId,
+      isDirty: true,
+    });
+  },
+
   selectNode: (nodeId) => set({ selectedNodeId: nodeId }),
 
   setDirty: (dirty) => set({ isDirty: dirty }),
+
+  toggleOutlinePanel: () => set({ outlinePanelOpen: !get().outlinePanelOpen }),
+
+  autoLayout: () => {
+    get().saveToHistory();
+    const { nodes, edges } = get();
+    const layoutedNodes = autoLayoutFn(nodes, edges);
+    set({
+      nodes: layoutedNodes,
+      isDirty: true,
+    });
+  },
+
+  moveNode: (nodeId, newParentId, newBranchHandle, insertAfterNodeId) => {
+    get().saveToHistory();
+    const { nodes, edges } = get();
+    const result = reorderFlow(nodes, edges, nodeId, newParentId, newBranchHandle, insertAfterNodeId);
+
+    // Apply auto-layout after reordering
+    const layoutedNodes = autoLayoutFn(result.nodes, result.edges);
+
+    set({
+      nodes: layoutedNodes,
+      edges: result.edges,
+      isDirty: true,
+    });
+  },
+
+  undo: () => {
+    const { past, nodes, edges, future } = get();
+    if (past.length === 0) return;
+
+    const previous = past[past.length - 1];
+    const newPast = past.slice(0, -1);
+
+    set({
+      past: newPast,
+      nodes: previous.nodes,
+      edges: previous.edges,
+      future: [{ nodes, edges }, ...future],
+      isDirty: true,
+    });
+  },
+
+  redo: () => {
+    const { future, nodes, edges, past } = get();
+    if (future.length === 0) return;
+
+    const next = future[0];
+    const newFuture = future.slice(1);
+
+    set({
+      past: [...past, { nodes, edges }],
+      nodes: next.nodes,
+      edges: next.edges,
+      future: newFuture,
+      isDirty: true,
+    });
+  },
 
   resetFlow: () =>
     set({
       flow: null,
       nodes: [],
       edges: [],
+      past: [],
+      future: [],
       selectedNodeId: null,
       isDirty: false,
+      outlinePanelOpen: false,
     }),
 }));

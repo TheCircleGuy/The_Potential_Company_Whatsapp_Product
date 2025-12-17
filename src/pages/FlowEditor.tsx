@@ -5,6 +5,7 @@ import { ArrowLeft, Save, Settings, Upload, Loader2, BarChart3 } from 'lucide-re
 import { FlowCanvas } from '@/components/canvas/FlowCanvas';
 import { NodePalette } from '@/components/sidebar/NodePalette';
 import { PropertyPanel } from '@/components/properties/PropertyPanel';
+import { FlowOutline } from '@/components/outline/FlowOutline';
 import { useFlowStore } from '@/stores/flowStore';
 import { flowsApi, configsApi, type WhatsAppConfig } from '@/lib/api';
 import type { NodeType, FlowNodeData } from '@/types/flow';
@@ -364,6 +365,9 @@ export function FlowEditor() {
             <FlowCanvas />
           </ReactFlowProvider>
         </div>
+
+        {/* Right sidebar - Flow Outline */}
+        <FlowOutline />
 
         {/* Right sidebar - Properties */}
         <PropertyPanel />
